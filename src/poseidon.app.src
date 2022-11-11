@@ -1,0 +1,15 @@
+{application, poseidon, [
+    {description, "Client for ScyllaDB based on the official Rust driver"},
+    {vsn, "0.1.0"},
+    {registered, []},
+    {applications, [
+        kernel,
+        stdlib
+    ]},
+    {env, []},
+    {modules, []},
+    {files, []},
+    {maintainers, ["Antoine Gagné <gagnantoine@gmail.com>"]},
+    {licenses, []},
+    {links, []}
+]}.

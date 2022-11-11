@@ -1,0 +1,21 @@
+[package]
+name = "poseidon_nif"
+version = "0.1.0"
+authors = ["Antoine Gagné <gagnantoine@gmail.com>"]
+build = "build.rs"
+
+[lib]
+name = "poseidon_nif"
+crate-type = ["dylib"]
+
+[dependencies]
+libc = "0.2"
+bincode = "1.3"
+rustler = "0.26"
+siphasher = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+scylla = "0.6"
+
+[build-dependencies]
+cc = { version = "1.0", features = ["parallel"] }
+pkg-config = "0.3"
