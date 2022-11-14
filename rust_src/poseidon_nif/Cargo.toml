@@ -2,6 +2,7 @@
 name = "poseidon_nif"
 version = "0.1.0"
 authors = ["Antoine Gagné <gagnantoine@gmail.com>"]
+edition = "2021"
 build = "build.rs"
 
 [lib]
@@ -9,12 +10,17 @@ name = "poseidon_nif"
 crate-type = ["dylib"]
 
 [dependencies]
-libc = "0.2"
 bincode = "1.3"
+env_logger = "0.9"
+futures = "0.3"
+libc = "0.2"
+log = "0.4"
+once_cell = "1.16.0"
 rustler = "0.26"
-siphasher = "0.3"
-serde = { version = "1.0", features = ["derive"] }
 scylla = "0.6"
+serde = { version = "1.0", features = ["derive"] }
+siphasher = "0.3"
+tokio = { version = "1.21", features = ["full"] }
 
 [build-dependencies]
 cc = { version = "1.0", features = ["parallel"] }

@@ -3,7 +3,12 @@
 -include("crates.hrl").
 
 %% API
--export([start/0]).
+-export([
+    client_start/1,
+    client_stop/1,
+    client_send/2,
+    client_prepare_query/2
+]).
 
 %% Native library support
 -export([load/0]).
@@ -14,8 +19,16 @@
 %%% API
 %%%===================================================================
 
--spec start() -> ok.
-start() ->
+client_start(_Config) ->
+    not_loaded(?LINE).
+
+client_stop(_Reference) ->
+    not_loaded(?LINE).
+
+client_send(_Reference, _Message) ->
+    not_loaded(?LINE).
+
+client_prepare_query(_Reference, _Query) ->
     not_loaded(?LINE).
 
 %%%===================================================================
