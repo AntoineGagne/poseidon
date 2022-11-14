@@ -17,6 +17,11 @@ mod task;
 
 rustler::init!(
     "poseidon_nif",
-    [client::start, client::deliver, client::stop],
+    [
+        client::start,
+        client::deliver,
+        client::stop,
+        client::prepare_query
+    ],
     load = nif::on_load
 );

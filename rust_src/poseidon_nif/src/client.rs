@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use rustler::{Atom, Encoder, Env, NifStruct, OwnedEnv, ResourceArc};
 use rustler::types::Pid;
 use scylla::transport::load_balancing::{DcAwareRoundRobinPolicy, TokenAwarePolicy};
-use scylla::{IntoTypedRows, Session, SessionBuilder};
+use scylla::SessionBuilder;
 use scylla::prepared_statement::PreparedStatement;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 
