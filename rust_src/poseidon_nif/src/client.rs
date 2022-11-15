@@ -36,7 +36,7 @@ enum Action {
     Stop,
 }
 
-struct Duration(std::time::Duration);
+pub struct Duration(std::time::Duration);
 
 impl<'a> Decoder<'a> for Duration {
     fn decode(term: Term<'a>) -> NifResult<Self> {
@@ -52,40 +52,65 @@ impl<'a> Encoder for Duration {
     }
 }
 
-struct Consistency(scylla::frame::types::Consistency);
+pub enum Consistency {
+    Any,
+    One,
+    Two,
+    Three,
+    Quorum,
+    All,
+    LocalQuorum,
+    EachQuorum,
+    LocalOne,
+}
 
 impl<'a> Decoder<'a> for Consistency {
     fn decode(term: Term<'a>) -> NifResult<Self> {
-        use scylla::frame::types;
         let atom: Atom = term.decode()?;
         match atom {
-            any if any == crate::atoms::any() => Ok(Consistency(types::Consistency::Any)),
-            one if one == crate::atoms::one() => Ok(Consistency(types::Consistency::One)),
-            two if two == crate::atoms::two() => Ok(Consistency(types::Consistency::Two)),
-            three if three == crate::atoms::three() => Ok(Consistency(types::Consistency::Three)),
-            quorum if quorum == crate::atoms::quorum() => Ok(Consistency(types::Consistency::Quorum)),
-            all if all == crate::atoms::all() => Ok(Consistency(types::Consistency::All)),
-            local_quorum if local_quorum == crate::atoms::local_quorum() => Ok(Consistency(types::Consistency::LocalQuorum)),
-            each_quorum if each_quorum == crate::atoms::each_quorum() => Ok(Consistency(types::Consistency::One)),
-            local_one if local_one == crate::atoms::local_one() => Ok(Consistency(types::Consistency::LocalOne)),
+            any if any == crate::atoms::any() => Ok(Consistency::Any),
+            one if one == crate::atoms::one() => Ok(Consistency::One),
+            two if two == crate::atoms::two() => Ok(Consistency::Two),
+            three if three == crate::atoms::three() => Ok(Consistency::Three),
+            quorum if quorum == crate::atoms::quorum() => Ok(Consistency::Quorum),
+            all if all == crate::atoms::all() => Ok(Consistency::All),
+            local_quorum if local_quorum == crate::atoms::local_quorum() => Ok(Consistency::LocalQuorum),
+            each_quorum if each_quorum == crate::atoms::each_quorum() => Ok(Consistency::EachQuorum),
+            local_one if local_one == crate::atoms::local_one() => Ok(Consistency::LocalOne),
             _ => Err(rustler::Error::BadArg),
+        }
+    }
+}
+
+impl From<&scylla::frame::types::Consistency> for Consistency {
+    fn from(consistency: &scylla::frame::types::Consistency) -> Consistency {
+        use scylla::frame::types;
+        match consistency {
+            types::Consistency::Any => Consistency::Any,
+            types::Consistency::One => Consistency::One,
+            types::Consistency::Two => Consistency::Two,
+            types::Consistency::Three => Consistency::Three,
+            types::Consistency::Quorum => Consistency::Quorum,
+            types::Consistency::All => Consistency::All,
+            types::Consistency::LocalQuorum => Consistency::LocalQuorum,
+            types::Consistency::EachQuorum => Consistency::EachQuorum,
+            types::Consistency::LocalOne => Consistency::LocalOne,
         }
     }
 }
 
 impl<'a> Encoder for Consistency {
     fn encode<'b>(&self, env: Env<'b>) -> Term<'b> {
-        use scylla::frame::types;
-        match self.0 {
-            types::Consistency::Any => crate::atoms::any(),
-            types::Consistency::One => crate::atoms::one(),
-            types::Consistency::Two => crate::atoms::two(),
-            types::Consistency::Three => crate::atoms::three(),
-            types::Consistency::Quorum => crate::atoms::quorum(),
-            types::Consistency::All => crate::atoms::all(),
-            types::Consistency::LocalQuorum => crate::atoms::local_quorum(),
-            types::Consistency::EachQuorum => crate::atoms::each_quorum(),
-            types::Consistency::LocalOne => crate::atoms::local_one(),
+        match self {
+            Consistency::Any => crate::atoms::any(),
+            Consistency::One => crate::atoms::one(),
+            Consistency::Two => crate::atoms::two(),
+            Consistency::Three => crate::atoms::three(),
+            Consistency::Quorum => crate::atoms::quorum(),
+            Consistency::All => crate::atoms::all(),
+            Consistency::LocalQuorum => crate::atoms::local_quorum(),
+            Consistency::EachQuorum => crate::atoms::each_quorum(),
+            Consistency::LocalOne => crate::atoms::local_one(),
         }.encode(env)
     }
 }
@@ -93,14 +118,14 @@ impl<'a> Encoder for Consistency {
 #[derive(NifStruct)]
 #[module = "Poseidon.Client.Config"]
 pub struct Config {
-    uri: String,
-    request_timeout: Option<Duration>,
-    default_consistency: Option<Consistency>,
-    connection_timeout: Option<Duration>,
-    fetch_schema_metadata: Option<bool>,
-    keepalive_interval: Option<Duration>,
-    auto_schema_agreement_timeout: Option<Duration>,
-    refresh_metadata_on_auto_schema_agreement: Option<bool>
+    pub uri: String,
+    pub request_timeout: Option<Duration>,
+    pub default_consistency: Option<Consistency>,
+    pub connection_timeout: Option<Duration>,
+    pub fetch_schema_metadata: Option<bool>,
+    pub keepalive_interval: Option<Duration>,
+    pub auto_schema_agreement_timeout: Option<Duration>,
+    pub refresh_metadata_on_auto_schema_agreement: Option<bool>
 }
 
 pub fn load(env: Env) -> bool {
@@ -192,7 +217,6 @@ fn spawn_client(global_env: Env, config: Config, mut receiver: Receiver<Action>)
             }
     });
 }
-
 
 fn send(resource: ResourceArc<Reference>, action: Action) {
     let lock = resource.0.lock().expect("Failed to obtain a lock");
