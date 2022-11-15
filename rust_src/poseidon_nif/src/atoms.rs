@@ -1,6 +1,13 @@
 rustler::atoms! {
     ok,
     error,
-    encoding,
-    decoding
+    any,
+    one,
+    two,
+    three,
+    quorum,
+    all,
+    local_quorum,
+    each_quorum,
+    local_one,
 }

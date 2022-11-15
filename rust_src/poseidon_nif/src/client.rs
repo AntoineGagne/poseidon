@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use rustler::{Atom, Encoder, Env, NifStruct, OwnedEnv, ResourceArc};
+use rustler::{Atom, Encoder, Env, NifStruct, OwnedEnv, ResourceArc, Decoder, NifResult, Term};
 use rustler::types::Pid;
 use scylla::transport::load_balancing::{DcAwareRoundRobinPolicy, TokenAwarePolicy};
 use scylla::SessionBuilder;
@@ -36,9 +36,72 @@ enum Action {
     Stop,
 }
 
+struct Duration(std::time::Duration);
+
+impl<'a> Decoder<'a> for Duration {
+    fn decode(term: Term<'a>) -> NifResult<Self> {
+        let duration: u64 = term.decode()?;
+        Ok(Duration(std::time::Duration::from_millis(duration)))
+    }
+}
+
+impl<'a> Encoder for Duration {
+    fn encode<'b>(&self, env: Env<'b>) -> Term<'b> {
+        let duration: u64 = self.0.as_millis().try_into().unwrap();
+        duration.encode(env)
+    }
+}
+
+struct Consistency(scylla::frame::types::Consistency);
+
+impl<'a> Decoder<'a> for Consistency {
+    fn decode(term: Term<'a>) -> NifResult<Self> {
+        use scylla::frame::types;
+        let atom: Atom = term.decode()?;
+        match atom {
+            any if any == crate::atoms::any() => Ok(Consistency(types::Consistency::Any)),
+            one if one == crate::atoms::one() => Ok(Consistency(types::Consistency::One)),
+            two if two == crate::atoms::two() => Ok(Consistency(types::Consistency::Two)),
+            three if three == crate::atoms::three() => Ok(Consistency(types::Consistency::Three)),
+            quorum if quorum == crate::atoms::quorum() => Ok(Consistency(types::Consistency::Quorum)),
+            all if all == crate::atoms::all() => Ok(Consistency(types::Consistency::All)),
+            local_quorum if local_quorum == crate::atoms::local_quorum() => Ok(Consistency(types::Consistency::LocalQuorum)),
+            each_quorum if each_quorum == crate::atoms::each_quorum() => Ok(Consistency(types::Consistency::One)),
+            local_one if local_one == crate::atoms::local_one() => Ok(Consistency(types::Consistency::LocalOne)),
+            _ => Err(rustler::Error::BadArg),
+        }
+    }
+}
+
+impl<'a> Encoder for Consistency {
+    fn encode<'b>(&self, env: Env<'b>) -> Term<'b> {
+        use scylla::frame::types;
+        match self.0 {
+            types::Consistency::Any => crate::atoms::any(),
+            types::Consistency::One => crate::atoms::one(),
+            types::Consistency::Two => crate::atoms::two(),
+            types::Consistency::Three => crate::atoms::three(),
+            types::Consistency::Quorum => crate::atoms::quorum(),
+            types::Consistency::All => crate::atoms::all(),
+            types::Consistency::LocalQuorum => crate::atoms::local_quorum(),
+            types::Consistency::EachQuorum => crate::atoms::each_quorum(),
+            types::Consistency::LocalOne => crate::atoms::local_one(),
+        }.encode(env)
+    }
+}
+
 #[derive(NifStruct)]
 #[module = "Poseidon.Client.Config"]
-pub struct Config {}
+pub struct Config {
+    uri: String,
+    request_timeout: Option<Duration>,
+    default_consistency: Option<Consistency>,
+    connection_timeout: Option<Duration>,
+    fetch_schema_metadata: Option<bool>,
+    keepalive_interval: Option<Duration>,
+    auto_schema_agreement_timeout: Option<Duration>,
+    refresh_metadata_on_auto_schema_agreement: Option<bool>
+}
 
 pub fn load(env: Env) -> bool {
     rustler::resource!(Reference, env);
@@ -71,7 +134,7 @@ pub fn stop(resource: ResourceArc<Reference>) -> Atom {
     ok()
 }
 
-fn spawn_client(global_env: Env, _config: Config, mut receiver: Receiver<Action>) {
+fn spawn_client(global_env: Env, config: Config, mut receiver: Receiver<Action>) {
     let pid = global_env.pid();
     task::spawn(async move {
         let mut env = OwnedEnv::new();
@@ -79,11 +142,11 @@ fn spawn_client(global_env: Env, _config: Config, mut receiver: Receiver<Action>
         let dc_robin = Box::new(DcAwareRoundRobinPolicy::new("us_east".to_string()));
         let policy = Arc::new(TokenAwarePolicy::new(dc_robin));
         match SessionBuilder::new()
-            .known_node("127.0.0.1:9042")
+            .known_node(&config.uri)
             .load_balancing(policy)
             .build().await {
                 Ok(session) => {
-                    info!("Opened session to \"{}\" with DC \"{}\"", "127.0.0.1:9042", "us_east");
+                    info!("Opened session to \"{}\"", &config.uri);
                     env.send_and_clear(&pid, move |env| {
                         ok().encode(env)
                     });
@@ -96,7 +159,7 @@ fn spawn_client(global_env: Env, _config: Config, mut receiver: Receiver<Action>
                             }
                             Some(Action::PrepareQuery(pid, query)) => {
                                 match session
-                                    .prepare(query)
+                                    .prepare(query.clone())
                                     .await {
                                         Ok(prepared) => {
                                             env.send_and_clear(&pid, move |env| {
@@ -104,18 +167,23 @@ fn spawn_client(global_env: Env, _config: Config, mut receiver: Receiver<Action>
                                             });
                                         },
                                         Err(error) => {
+                                            error!("Failed to prepare query \"{}\" with error {}", &query, error.to_string());
                                             env.send_and_clear(&pid, move |env| {
                                                 (crate::atoms::error(), error.to_string()).encode(env)
                                             })
                                         }
                                     }
                             },
-                            Some(Action::Stop) => break,
+                            Some(Action::Stop) => {
+                                info!("Closing session to \"{}\"", &config.uri);
+                                break
+                            },
                             None => continue,
                         }
                     }
                 },
                 Err(error) => {
+                    error!("Failed to open new session to {} with error {}", &config.uri, error.to_string());
                     env.send_and_clear(&pid, move |env| {
                         (crate::atoms::error(), error.to_string()).encode(env)
                     });
